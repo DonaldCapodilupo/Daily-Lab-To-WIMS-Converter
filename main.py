@@ -112,8 +112,8 @@ variable_number_dict = {
     "Turbidity Baker Grab": 2711,
 
     "Primary Clarifier 1 Depth of Blanket": 305,
-    "Primary Clarifier 2 Depth of Blanket": 406,
-    "Primary Clarifier 3 Depth of Blanket": 507,
+    "Primary Clarifier 2 Depth of Blanket": 405,
+    "Primary Clarifier 3 Depth of Blanket": 505,
 
     "Secondary Clarifier 1 Depth of Blanket": 1205,
     "Secondary Clarifier 2 Depth of Blanket": 1305,
@@ -406,113 +406,51 @@ def read_Excel_File(ws):
 
     return return_dict
 
-
-def create_Upload_File():
-    final_dict = {"Date": [], "Variable Number": [], "Value": []}
-    for lab_sheet in os.listdir("Data"):
-        with open("Data/" + lab_sheet) as json_file:
-
-            data = json.load(json_file)
-
-            for data_description, data_value in data.items():
-                print("Key: " + data_description)
-                print("Value: " + data_value)
-
-                if data_description in variable_number_dict.keys():
-
-                    print(
-                        data_description + " was found in the variable number dict and has a variable number of: " + str(
-                            variable_number_dict[data_value]))
-
-                    final_dict["Date"].append(lab_sheet[:-5])
-                    final_dict["Variable Number"].append(str(variable_number_dict[data_value]))
-                    final_dict["Value"].append(data_value)
-
-                    total_data_dict[data_description].append(data_value)
-                else:
-                    print(data_description + " was not found in the variable number dictionary.")
-                    total_data_dict[data_description].append(data_value)
-
-    df = pd.DataFrame.from_dict(final_dict)
-
-    df.to_csv("Export.csv")
-
-
-# def scrape_Excel(workbook_name):
-#    wb = openpyxl.load_workbook("Daily Lab Sheets/" + workbook_name)
-#
-#    for sheet in wb.worksheets:
-#
-#        if sheet in ["BLANK LAB SHEET", "F M", "Detention times", "Fournier Press", "SRT Time", "DMR Weekly", "Sheet 1",
-#                     "DMR"]:
-#            continue
-#
-#        print("Sheet:" + sheet.title)
-
-#        work_sheet = wb[sheet.title]
-#        tab_data = read_Excel_File(work_sheet)
-
-#        try:
-#            with open("Data/" + tab_data["Date"].replace("/", "-").replace(":", "-") + ".json", "w") as output_file:
-# print("tab_data[Date]: " + sheet + " " + tab_data["Date"])
-#                json.dump(tab_data, output_file)
-#        except FileNotFoundError:
-
-#            print("Not found: " + tab_data["Date"])
-#            pass
-
-
 if __name__ == '__main__':
 
     data_list = []
 
-    df_dates = []
-    df_var_nums = []
-    df_values = []
-    df_account_names = []
+    spreadsheet_tab_to_ignore = ["BLANK LAB SHEET", "F M", "Detention times", "Fournier Press", "SRT Time",
+                                 "DMR Weekly",
+                                 "Sheet 1",
+                                 "DMR"]
 
     spreadsheets_to_iterate_through = os.listdir("Daily Lab Sheets")
 
     for spreadsheet in spreadsheets_to_iterate_through:
         wb = openpyxl.load_workbook("Daily Lab Sheets/" + spreadsheet)
 
-        for sheet in wb.worksheets:
-            if sheet.title in ["BLANK LAB SHEET", "F M", "Detention times", "Fournier Press", "SRT Time", "DMR Weekly",
-                               "Sheet 1",
-                               "DMR"]:
+        workbook_sheets = [sheet.title for sheet in wb.worksheets if sheet.title not in spreadsheet_tab_to_ignore]
+
+
+
+        for sheet in workbook_sheets:
+            print(sheet)
+            print(wb)
+            work_sheet = wb[sheet]
+
+            the_date = str(work_sheet["C5"].value)
+
+            if the_date is None:
+                print("Skipping " + sheet + " because it does not have a value in C5")
                 continue
-            else:
+            print("Getting the data for: " + sheet)
 
-                # print("Sheet:" + sheet.title)
+            tab_data = read_Excel_File(work_sheet)
 
-                work_sheet = wb[sheet.title]
 
-                the_date = str(work_sheet["C5"].value)
 
-                if the_date is None:
-                    continue
+            for account_name, account_value in tab_data.items():
 
-                if the_date is None:
-                    print("Skipping " + sheet.title + " because it does not have a value in C5")
-                    continue
-                print("Getting the data for: " + sheet.title)
+                try:
+                    account_variable_number = variable_number_dict[account_name]
+                except KeyError:
+                    account_variable_number = "N/A"
 
-                tab_data = read_Excel_File(work_sheet)
-                for key, value in tab_data.items():
-                    df_dates.append(the_date)
-                    try:
-                        df_var_nums.append(variable_number_dict[key])
-                    except KeyError:
-                        print("Key Error, Variable Number Dict does not have a key of " + key)
-                        df_var_nums.append("NULL")
+                data_list.append((account_variable_number, the_date, account_value, account_name))
 
-                    df_values.append(value)
-                    df_account_names.append(key)
+    print(data_list)
 
-    df = pd.DataFrame({"Date": df_dates, "Variable Number": df_var_nums, "Value": df_values})
+    df = pd.DataFrame(data_list, columns=("Date","Variable Number", "Value", "Account Name"))
+    df.to_csv("Export.csv")
 
-    print(df)
-    df.to_csv("Tryhard.csv")
-    # Desired format is VarNum, Date, Value
-
-    # create_Upload_File()
